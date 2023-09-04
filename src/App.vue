@@ -1,17 +1,21 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
+import mitt from './components/global-upload/src/mitt/index'
+import BaseUploader from './components/global-upload/index'
+const openUpload = () => {
+  mitt.emit('openUploader', {
+    accept: ['.sdpc', '.ndpi', '.tif', '.mp4'],
+    params: {
+      id: 1,
+    },
+  })
+}
 </script>
 
 <template>
   <div>
-    <a href="https://vitejs.dev" target="_blank">
-      <img src="/vite.svg" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://vuejs.org/" target="_blank">
-      <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-    </a>
+    <el-button @click="openUpload">点击上传</el-button>
+    <BaseUploader></BaseUploader>
   </div>
-  <HelloWorld msg="Vite + Vue" />
 </template>
 
 <style scoped>

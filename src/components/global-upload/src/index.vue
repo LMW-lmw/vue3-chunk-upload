@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import uploadEnum, { setStatus, statusObj } from './utils/uploadEnum'
@@ -9,6 +9,7 @@ import {
   generateMD5,
   getChunkFormData,
   conversionSize,
+  cutFile,
 } from './utils/utils'
 import { getCheck, mergeSimpleUpload, getCurrentChunk } from './api'
 import request from './service'
@@ -74,7 +75,7 @@ const handleFileChange = async (e) => {
       caseId: totalParams.value.caseId,
       fileNames: fileNames,
     })
-    if (res?.code === 200) {
+    if (res) {
       let originLength = uploadList.value.length
       filterArr.forEach((file) => {
         file.fileId = getHash()
@@ -104,48 +105,50 @@ const handleFileChange = async (e) => {
     })
   }
 }
-const computeMD5 = (file) => {
+const computeMD5 = async (file) => {
+  const md5 = await cutFile(file)
+  console.log(md5)
   // 开始计算MD5
   // abort是终止计算
-  const { abort, pause, start } = generateMD5(file.file, totalChunkSize.value, {
-    onProgress(currentChunk, chunks) {
-      let md5Progress
-      // 实时展示MD5的计算进度
-      if (chunks !== 0) {
-        md5Progress = parseInt(((currentChunk / chunks) * 100).toFixed(0))
-      } else {
-        md5Progress = 100
-      }
-      setStatus(file, 'md5Progress', md5Progress)
-    },
-    onSuccess(md5, chunksList) {
-      setStatus(file, 'status', statusObj.ready)
-      file.chunksList = chunksList
-      md5Success(file, md5, chunksList)
-    },
-    onError() {
-      setStatus(file, 'status', statusObj.reject)
-      ElMessage({
-        type: 'error',
-        message: '文件校验失败',
-        duration: 5000,
-        showClose: true,
-      })
-    },
-  })
-  abortList[file.fileId] = abort
-  if (!abortList[file.fileId]) {
-    abortList[file.fileId] = {}
-    const obj = abortList[file.fileId]
-    obj.abort = abort
-    obj.pause = pause
-    obj.start = start
-  } else {
-    const obj = abortList[file.fileId]
-    obj.abort = abort
-    obj.pause = pause
-    obj.start = start
-  }
+  // const { abort, pause, start } = generateMD5(file.file, totalChunkSize.value, {
+  //   onProgress(currentChunk, chunks) {
+  //     let md5Progress
+  //     // 实时展示MD5的计算进度
+  //     if (chunks !== 0) {
+  //       md5Progress = parseInt(((currentChunk / chunks) * 100).toFixed(0))
+  //     } else {
+  //       md5Progress = 100
+  //     }
+  //     setStatus(file, 'md5Progress', md5Progress)
+  //   },
+  //   onSuccess(md5, chunksList) {
+  //     setStatus(file, 'status', statusObj.ready)
+  //     file.chunksList = chunksList
+  //     md5Success(file, md5, chunksList)
+  //   },
+  //   onError() {
+  //     setStatus(file, 'status', statusObj.reject)
+  //     ElMessage({
+  //       type: 'error',
+  //       message: '文件校验失败',
+  //       duration: 5000,
+  //       showClose: true,
+  //     })
+  //   },
+  // })
+  // abortList[file.fileId] = abort
+  // if (!abortList[file.fileId]) {
+  //   abortList[file.fileId] = {}
+  //   const obj = abortList[file.fileId]
+  //   obj.abort = abort
+  //   obj.pause = pause
+  //   obj.start = start
+  // } else {
+  //   const obj = abortList[file.fileId]
+  //   obj.abort = abort
+  //   obj.pause = pause
+  //   obj.start = start
+  // }
 }
 const md5Success = (file, md5, chunksList) => {
   setStatus(file, 'md5', md5)

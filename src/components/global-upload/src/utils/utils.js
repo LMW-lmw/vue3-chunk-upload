@@ -5,9 +5,6 @@ export const checkFile = (files, accept, maxSize, sizeUnit) => {
   const fileList = Array.from(files)
   let returnArr = []
   let totalMaxSize = maxSize
-
-  //  2 * 1024 * 1024 * 1024,
-  //  2 * 1024
   if (sizeUnit === 'MB') {
     totalMaxSize = maxSize * 1024 * 1024
   }
@@ -60,7 +57,7 @@ export const createFileChunk = (file, size) => {
   }
   return fileChunkList
 }
-
+const THREAD_COUNT = 4
 /**
  * 分段计算MD5
  * @param file {File}
@@ -79,20 +76,17 @@ export function generateMD5(
     File.prototype.webkitSlice
   let isPause = false
   const fileNameList = file.name.split('.')
+  // 文件名
   let firstName = fileNameList.slice(0, -1).join('.')
+  // 文件后缀名
   let suffix = fileNameList[fileNameList.length - 1]
+  // 文件片数
   const chunks = Math.ceil(file.size / chunkSize)
+  // 分片的文件
   const chunksList = []
   let currentChunk = 0
   const spark = new SparkMD5.ArrayBuffer()
-  let sparkFlag = true
   const loadNext = () => {
-    if (currentChunk + 1 === chunks) {
-      sparkFlag = true
-    }
-    if (currentChunk === Math.floor(chunks / 2)) {
-      sparkFlag = true
-    }
     let start = currentChunk * chunkSize
     let end = start + chunkSize >= file.size ? file.size : start + chunkSize
     const buffer = blobSlice.call(file, start, end)
@@ -109,17 +103,9 @@ export function generateMD5(
   loadNext()
 
   fileReader.onload = (e) => {
-    // if (sparkFlag) {
-    //   spark.append(e.target.result)
-    //   sparkFlag = false
-    // }
     if (!isPause) {
       if (currentChunk < chunks - 1) {
-        // spark.append(e.target.result)
-        if (sparkFlag) {
-          spark.append(e.target.result)
-          sparkFlag = false
-        }
+        spark.append(e.target.result)
         currentChunk++
         loadNext()
         if (options.onProgress && typeof options.onProgress == 'function') {
@@ -140,7 +126,6 @@ export function generateMD5(
   }
 
   fileReader.onerror = function () {
-    // console.log('MD5计算失败')
     if (options.onError && typeof options.onError == 'function') {
       options.onError()
     }
@@ -157,6 +142,62 @@ export function generateMD5(
     loadNext()
   }
   return { abort, pause, start }
+}
+export function createChunk(file, index, chunkSize) {
+  return new Promise((resolve, reject) => {
+    const start = index * chunkSize
+    const end = start + chunkSize
+    const spark = new SparkMD5.ArrayBuffer()
+    const fileReader = new FileReader()
+    fileReader.onload = (e) => {
+      spark.append(e.target.result)
+      resolve({
+        start,
+        end,
+        index,
+        hash: spark.end(),
+      })
+    }
+    fileReader.readAsArrayBuffer(file.slice(start, end))
+  })
+}
+export function cutFile(uploadFile, chunkSize = 10 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    let file = uploadFile.file
+    // 文件片数
+    const chunks = Math.ceil(file.size / chunkSize)
+    let finishCount = 0
+    const chunksList = []
+    const workerChunkCount = Math.ceil(chunks / THREAD_COUNT)
+    for (let i = 0; i < THREAD_COUNT; i++) {
+      const worker = new Worker('./worker.js', {
+        type: 'module',
+      })
+      const startIndex = i * workerChunkCount
+      let endIndex = startIndex + workerChunkCount
+      if (endIndex > chunks) {
+        endIndex = chunks
+      }
+      console.log(worker)
+      worker.postMessage({
+        file,
+        chunkSize,
+        startIndex,
+        endIndex,
+      })
+      worker.onmessage = (e) => {
+        console.log(e)
+        for (let i = startIndex; i < endIndex; i++) {
+          chunksList[i] = e.data[i - startIndex]
+        }
+        worker.terminate()
+        finishCount++
+        if (finishCount === THREAD_COUNT) {
+          resolve(chunksList)
+        }
+      }
+    }
+  })
 }
 
 export const getChunkFormData = (file, md5, chunk, chunkSize, totalChunks) => {
