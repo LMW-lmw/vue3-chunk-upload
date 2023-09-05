@@ -5,7 +5,8 @@ const openUpload = () => {
   mitt.emit('openUploader', {
     accept: ['.sdpc', '.ndpi', '.tif', '.mp4'],
     params: {
-      id: 1,
+      caseId: 1774,
+      sectionType: 2,
     },
   })
 }
