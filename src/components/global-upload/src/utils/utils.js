@@ -1,4 +1,3 @@
-import SparkMD5 from 'spark-md5'
 import { ElMessage } from 'element-plus'
 
 export const checkFile = (files, accept, maxSize, sizeUnit) => {
